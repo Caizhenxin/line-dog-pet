@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; overflow: hidden; background: transparent; }
+  canvas { position: fixed; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<canvas id="fp"></canvas>
+<script>
+'use strict';
+/* 爪印层：全屏透明、全程鼠标穿透，只负责画爪印并淡出。 */
+const cv = document.getElementById('fp');
+const ctx = cv.getContext('2d');
+const W = window.innerWidth, H = window.innerHeight;
+cv.width = W * devicePixelRatio; cv.height = H * devicePixelRatio;
+ctx.scale(devicePixelRatio, devicePixelRatio);
+
+const prints = [];   // {x, y, rot, t0, life, scale}
+
+function drawPrint(x, y, rot, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = 'rgba(122, 94, 66, 0.55)';
+  // 大肉垫
+  ctx.beginPath();
+  ctx.ellipse(0, 4, 7, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 4 个趾垫
+  [[-6, -7], [0, -9], [6, -7], [-3, -2]].forEach(function (p) {
+    ctx.beginPath();
+    ctx.ellipse(p[0], p[1], 2.6, 3.2, p[0] * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function frame(now) {
+  ctx.clearRect(0, 0, W, H);
+  for (let i = prints.length - 1; i >= 0; i--) {
+    const p = prints[i];
+    const k = (now - p.t0) / p.life;
+    if (k >= 1) { prints.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.max(0, 0.5 * (1 - k));   // 渐隐
+    drawPrint(p.x, p.y, p.rot, p.scale);
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+
+window.fpBridge && window.fpBridge.onAdd(function (d) {
+  if (!d) return;
+  prints.push({
+    x: d.x, y: d.y,
+    rot: Math.random() * Math.PI,
+    t0: performance.now(),
+    life: 6000 + Math.random() * 3000,      // 6~9 秒渐隐
+    scale: 0.5 + Math.random() * 0.35,      // 大小随机
+  });
+});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

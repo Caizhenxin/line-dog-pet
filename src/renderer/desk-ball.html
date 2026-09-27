@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="../../">
+<meta charset="utf-8">
+<title>小球</title>
+<style>
+  html,body{ margin:0; height:100%; overflow:hidden; background:transparent;
+    user-select:none; -webkit-user-select:none; }
+  canvas{ display:block; width:100%; height:100%; cursor:grab; }
+  body.held canvas{ cursor:grabbing; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/* 桌面上的那颗球。这一页只干两件事：把球画出来、把你的按下/松开告诉主进程。
+   物理、重力、弹地、被狗叼走全在主进程（窗口坐标本来就在那边）。 */
+(function(){
+  'use strict';
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const api = window.ballDesk || null;
+  const R = parseFloat(new URLSearchParams(location.search).get('r')) || 38;
+
+  // 旋转角度：让球面上的花纹慢慢转，看起来像在滚动（视觉动感）
+  let spin = 0;
+  function draw(){
+    const DPR = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth || (R * 2 + 12);
+    const H = window.innerHeight || (R * 2 + 12);
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2;
+
+    // 底部投影（球贴着桌面的那一边）
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + R * 0.88, R * 0.78, R * 0.30, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(16,20,24,0.10)';
+    ctx.fill();
+
+    // 主球：青绿径向渐变（亮部偏左上，暗部偏右下）
+    const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, R * 0.15, cx, cy, R);
+    g.addColorStop(0, '#5cfff0');
+    g.addColorStop(0.55, '#00e6d7');
+    g.addColorStop(1, '#00a89c');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = Math.max(2.5, R * 0.14);
+    ctx.strokeStyle = '#101418';
+    ctx.stroke();
+
+    // 球面花纹：四片深色「狗爪印/花斑」绕中心旋转（模拟滚动）
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(spin);
+    const spots = [
+      { a: 0.0, r: 0.42, s: 0.20 },
+      { a: 2.1, r: 0.42, s: 0.20 },
+      { a: 4.2, r: 0.42, s: 0.20 },
+      { a: Math.PI, r: 0.10, s: 0.16 },
+    ];
+    spots.forEach(function (sp) {
+      ctx.save();
+      ctx.rotate(sp.a);
+      ctx.translate(sp.r * R, 0);
+      ctx.rotate(-spin * 0.5);
+      ctx.beginPath();
+      ctx.arc(0, 0, sp.s * R, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(16,20,24,0.30)';
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
+
+    // 左上高光（透亮感）
+    ctx.beginPath();
+    ctx.ellipse(cx - R * 0.32, cy - R * 0.36, R * 0.30, R * 0.16, -0.6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fill();
+
+    spin = (spin + 0.018) % (Math.PI * 2);
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+
+  // 用 pointer 事件 + setPointerCapture：把球甩得很快时窗口会有一两帧跟不上，
+  // 光标可能瞬间跑到球窗外面，没有捕获的话「松手」就收不到，球会粘在手上。
+  function press(e){
+    e.preventDefault();
+    if(e.button === 2){ if(api) api.pickup(); return; }   // 右键 = 让小狗把球收起来
+    if(e.button !== 0) return;
+    document.body.classList.add('held');
+    try { cv.setPointerCapture(e.pointerId); } catch(_e){}
+    if(api) api.grab();
+  }
+  function drop(e){
+    if(e && e.button !== 0 && e.button !== undefined) return;
+    document.body.classList.remove('held');
+    if(api) api.release();
+  }
+  cv.addEventListener('pointerdown', press);
+  cv.addEventListener('pointerup', drop);
+  cv.addEventListener('lostpointercapture', () => drop());
+  window.addEventListener('blur', () => {
+    document.body.classList.remove('held');
+    if(api) api.release();
+  });
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+})();
+</script>
+</body>
+</html>

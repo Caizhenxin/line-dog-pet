@@ -1,0 +1,64 @@
+{
+  "name": "line-dog-pet",
+  "productName": "线条小狗桌宠",
+  "version": "1.0.0",
+  "private": true,
+  "description": "线条小狗桌宠 —— Desktop Goose 风格的桌面捣蛋小狗（基于官方小金毛桌宠 v2.2.0 重构）",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --mac"
+  },
+  "author": "sonos",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.linedog.line-dog-pet",
+    "productName": "LineDogPet",
+    "asar": true,
+    "files": [
+      "src/**",
+      "assets/**",
+      "goose-render.js",
+      "package.json",
+      "README.md"
+    ],
+    "extraResources": [
+      {
+        "from": "tools/move-mouse",
+        "to": "tools/move-mouse"
+      }
+    ],
+    "dmg": {
+      "title": "线条小狗桌宠"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.icns",
+      "artifactName": "LineDogPet-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "线条小狗桌宠"
+    },
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "identity": null
+    }
+  }
+}

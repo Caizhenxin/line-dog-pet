@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="../../">
+<meta charset="utf-8">
+<title>小金毛 · 宠物控制台</title>
+<style>
+  :root{
+    --ink:#141414; --card:#fff; --line:#e3e3e3; --text:#141414;
+    --muted:#8a8a8a; --accent:#111111; --accent2:#ffffff; --ok:#111111;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--text); background:#fafafa; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  /* ---------- 顶部（macOS 隐藏标题栏：这里兼作拖动区）---------- */
+  header{
+    -webkit-app-region:drag; flex:none;
+    padding:14px 18px 12px 82px;
+    background:#ffffff;
+    border-bottom:2.5px solid var(--ink);
+  }
+  h1{ margin:0; font-size:15px; font-weight:800; letter-spacing:.3px; color:var(--ink); }
+  h1 small{ font-weight:500; font-size:11px; color:var(--muted); margin-left:6px; letter-spacing:0; }
+  .tabs{ display:flex; gap:6px; margin-top:10px; -webkit-app-region:no-drag; }
+  .tab{ -webkit-app-region:no-drag; font:inherit; font-size:12px; cursor:pointer;
+    padding:6px 13px; border-radius:9px; border:1.5px solid var(--ink); background:#fff; color:#555; }
+  .tab.active{ border-color:var(--ink); background:#141414; color:#fff; font-weight:700; }
+  /* 四条改成两列网格：亲密度/饱腹度，以及兴致/疲劳。 */
+  .bars{ display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-top:9px; }
+  .dog-group{ margin-top:12px; padding:10px 12px 12px; background:#f7f7f5;
+    border:1px solid var(--line); border-radius:12px; }
+  .dogname{ grid-column:1 / -1; font-size:12px; font-weight:700; color:var(--ink);
+    display:flex; align-items:center; gap:6px; padding-bottom:6px; margin-bottom:4px;
+    border-bottom:1.5px solid var(--line); }
+  .dogname::before{ content:''; width:8px; height:8px; border-radius:50%;
+    background:#d5d5d5; flex:none; transition:background .15s, box-shadow .15s; }
+  /* 当前控制的那只：实心黑点 + 淡光环；另一只灰点 */
+  .dogname.ctrl::before{ background:var(--ink); box-shadow:0 0 0 2px rgba(20,20,20,.18); }
+  .bar b{ letter-spacing:.2px; }
+  .bar b span{ font-weight:800; color:var(--ink); }
+  .track{ height:8px; border-radius:20px; background:#e6e4de;
+    box-shadow:inset 0 1px 2px rgba(20,20,20,.08); }
+  .track i{ border-radius:20px; }
+  .bar{ flex:1; min-width:0; }
+  .bar b{ display:block; font-size:11px; font-weight:500; color:var(--muted); margin-bottom:4px; }
+  .bar b span{ float:right; color:#6b7789; font-variant-numeric:tabular-nums; }
+  .track{ height:6px; border-radius:99px; background:#eef1f7; overflow:hidden; }
+  .track i{ display:block; height:100%; width:0%; border-radius:99px; transition:width .35s ease; }
+  #heartBar{ background:#141414; }
+  #foodBar{ background:#141414; }
+  /* 兴致：决定「想不想玩」，也决定撒不撒欢 */
+  #moodBar{ background:#141414; }
+  /* 疲劳：涨满就该睡 —— 只有睡觉能清 */
+  #strainBar{ background:#141414; }
+  /* 清洁度：脏了会主动去洗澡（只影响表现，不会生病） */
+  #cleanBar{ background:#141414; }
+
+  /* ---------- 状态条 ---------- */
+  .now{
+    flex:none; display:flex; align-items:center; gap:9px;
+    padding:11px 18px; background:#fff; border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--ok); flex:none;
+        box-shadow:0 0 0 3px rgba(20,20,20,.14); }
+  .dot.away{ background:#d5d5d5; box-shadow:0 0 0 3px rgba(213,213,213,.25); }
+  .dot{ animation:dotPulse 1.6s ease-in-out infinite; }
+  @keyframes dotPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  #nowText{ color:var(--ink); font-weight:600; }
+  #nowWhere{ margin-left:auto; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  /* ---------- 主体 ---------- */
+  main{ flex:1; overflow-y:auto; padding:14px 18px 18px; }
+  main::-webkit-scrollbar{ width:9px; }
+  main::-webkit-scrollbar-thumb{ background:#dfe4ee; border-radius:99px; border:2px solid #f6f7fb; }
+  section{ margin-bottom:13px; }
+  section > h2{
+    margin:0 0 9px; font-size:11px; font-weight:600; letter-spacing:.6px;
+    color:var(--muted); text-transform:uppercase;
+  }
+  .grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  /* 动作分组的小标题（亲昵 / 日常 / 表演 / 情绪 / 两只一起） */
+  p.sub{
+    margin:10px 0 6px; font-size:11px; font-weight:600; letter-spacing:.5px;
+    color:#9aa4b6; display:flex; align-items:center; gap:8px;
+  }
+  p.sub:before{ content:""; flex:1; height:1px; background:#eef1f7; order:2; }
+  button.act{
+    -webkit-app-region:no-drag;
+    font:inherit; font-size:12.5px; color:#48566b; cursor:pointer;
+    padding:10px 4px; border-radius:11px; border:1px solid #e3e8f1; background:#fff;
+    transition:transform .12s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  button.act:hover{ border-color:var(--ink); box-shadow:0 2px 8px rgba(20,20,20,.08); }
+  button.act:active{ transform:scale(.95); }
+  button.act.wide{ grid-column:span 2; }
+  button.act.hot{ background:#141414; color:#fff; border-color:#141414; }
+
+  .row{ display:flex; align-items:center; gap:10px; margin:9px 0; font-size:12.5px; }
+  .row label{ flex:none; width:66px; color:#5d6a7d; }
+  .row input[type=range]{ -webkit-app-region:no-drag; flex:1; accent-color:var(--accent); }
+  .row output{ flex:none; width:52px; text-align:right; color:var(--muted);
+               font-variant-numeric:tabular-nums; font-size:11.5px; }
+  .hintline{ font-size:11px; color:var(--muted); margin:-4px 0 12px; line-height:1.6; }
+
+  .sw{ display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid #eef1f7; }
+  .sw:first-of-type{ border-top:0; }
+  .sw .txt{ flex:1; min-width:0; }
+  .sw .txt b{ display:block; font-size:12.5px; font-weight:500; color:#48566b; }
+  .sw .txt span{ font-size:11px; color:var(--muted); }
+  .tog{ -webkit-app-region:no-drag; flex:none; width:42px; height:24px; border-radius:99px;
+        border:0; background:#dde3ec; position:relative; cursor:pointer; transition:background .2s; }
+  .tog:after{ content:""; position:absolute; top:3px; left:3px; width:18px; height:18px;
+        border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.16);
+        transition:transform .2s cubic-bezier(.3,1.4,.5,1); }
+  .tog.on{ background:var(--accent); }
+  .tog.on:after{ transform:translateX(18px); }
+
+  footer{ flex:none; padding:12px 18px 16px; background:#fff; border-top:1px solid var(--line);
+          display:flex; align-items:center; gap:10px; }
+  footer .note{ font-size:10.5px; color:var(--muted); line-height:1.5; flex:1; }
+  footer .author{ color:#8a8a8a; }
+  button.quit{ -webkit-app-region:no-drag; font:inherit; font-size:12px; cursor:pointer;
+    padding:8px 14px; border-radius:10px; border:2px solid var(--ink); color:#141414; background:#fff; font-weight:700; }
+  button.quit:hover{ background:#141414; color:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">线条小狗<small id="subtitle">宠物控制台 · 两只一起养</small></h1>
+  <div class="bars dog-group">
+    <div class="dogname" id="dogName1">小金毛</div>
+    <div class="bar"><b>亲密度 <span id="heartVal1">—</span></b>
+      <div class="track"><i id="heartBar1"></i></div></div>
+    <div class="bar"><b>饱腹度 <span id="foodVal1">—</span></b>
+      <div class="track"><i id="foodBar1"></i></div></div>
+    <div class="bar"><b>兴致 <span id="moodVal1">—</span></b>
+      <div class="track"><i id="moodBar1"></i></div></div>
+    <div class="bar"><b>疲劳 <span id="strainVal1">—</span></b>
+      <div class="track"><i id="strainBar1"></i></div></div>
+    <div class="bar"><b>清洁度 <span id="cleanVal1">—</span></b>
+      <div class="track"><i id="cleanBar1"></i></div></div>
+  </div>
+  <div class="bars dog-group dog-pup">
+    <div class="dogname" id="dogName2">小白</div>
+    <div class="bar"><b>亲密度 <span id="heartVal2">—</span></b>
+      <div class="track"><i id="heartBar2"></i></div></div>
+    <div class="bar"><b>饱腹度 <span id="foodVal2">—</span></b>
+      <div class="track"><i id="foodBar2"></i></div></div>
+    <div class="bar"><b>兴致 <span id="moodVal2">—</span></b>
+      <div class="track"><i id="moodBar2"></i></div></div>
+    <div class="bar"><b>疲劳 <span id="strainVal2">—</span></b>
+      <div class="track"><i id="strainBar2"></i></div></div>
+    <div class="bar"><b>清洁度 <span id="cleanVal2">—</span></b>
+      <div class="track"><i id="cleanBar2"></i></div></div>
+  </div>
+</header>
+
+<div class="now"><i class="dot" id="dot1"></i><span id="nowText1">小金毛 正在连接桌宠…</span></div>
+<div class="now"><i class="dot" id="dot2"></i><span id="nowText2">小白 正在连接桌宠…</span></div>
+
+<main>
+  <section>
+    <h2>动作</h2>
+    <!-- 分组口径跟游戏里的动作分类一致（见 index.html 的 highActions / lowActions）：
+           亲昵 = 你直接对它做的事；日常 = 中性动作（兴致高低都会做）；
+           积极 = 高兴致才做的；消极 = 低兴致才做的；双人 = 两只一起。
+         某只在另一只的控制台里被过滤掉之后，整组空了会把小标题一起隐藏。 -->
+    <p class="sub">亲昵</p>
+    <div class="grid">
+      <button class="act hot" data-act="pet">摸摸头</button>
+      <button class="act hot" data-act="treat">喂食</button>
+      <button class="act" data-act="giveFood" id="btnFood">给食材</button>
+      <button class="act" data-act="home">叫到身边</button>
+    </div>
+
+    <p class="sub">日常动作</p>
+    <div class="grid">
+      <button class="act" data-act="walk">散步</button>
+      <button class="act" data-act="run">奔跑</button>
+      <button class="act" data-act="exercise">锻炼</button>
+      <button class="act" data-act="crave">馋</button>
+      <button class="act" data-act="greet">打招呼</button>
+      <button class="act" data-act="hungry">饿了</button>
+      <button class="act" data-act="sit">坐下</button>
+      <button class="act" data-act="sleep">睡觉</button>
+      <button class="act" data-act="scratch">挠挠</button>
+      <button class="act" data-act="rub">揉脸</button>
+      <button class="act" data-act="fart">放屁</button>
+      <button class="act wide hot" data-act="deleteFile">清理文件</button>
+    </div>
+
+    <p class="sub">积极动作</p>
+    <div class="grid">
+      <button class="act" data-act="hehe">嘿嘿</button>
+      <button class="act" data-act="laugh">大笑</button>
+      <button class="act" data-act="jump">跳跃</button>
+      <button class="act" data-act="spin">转圈圈</button>
+      <button class="act" data-act="dance">跳舞</button>
+      <button class="act" data-act="celebrate">庆祝</button>
+      <button class="act" data-act="excited">兴奋</button>
+    </div>
+
+    <p class="sub">消极动作</p>
+    <div class="grid">
+      <button class="act" data-act="cry">哭哭</button>
+      <button class="act" data-act="bored">无聊</button>
+      <button class="act" data-act="wrong">做错</button>
+      <button class="act" data-act="wronged">委屈</button>
+      <button class="act" data-act="poor">贫穷</button>
+    </div>
+
+    <p class="sub">双人动作</p>
+    <div class="grid" id="gridDuo">
+      <button class="act" data-act="findJin">找小金毛玩</button>
+      <button class="act" data-act="chatJin">找小金毛聊天</button>
+      <button class="act" data-act="hugJin">找小金毛贴贴</button>
+      <button class="act" data-act="findPup">找小白玩</button>
+      <button class="act" data-act="chatPup">找小白聊天</button>
+      <button class="act" data-act="hugPup">找小白贴贴</button>
+      <button class="act" data-act="comfortJin">安慰小金毛</button>
+      <button class="act" data-act="comfortPup">安慰小白</button>
+      <button class="act" data-act="danceTogether">一起跳舞</button>
+      <button class="act" data-act="goOut">一起出去玩</button>
+      <button class="act" data-act="cook" id="btnCook">做饭</button>
+    </div>
+
+
+    <p class="sub">小游戏</p>
+    <div class="grid">
+      <button class="act wide hot" data-act="ballGame" id="btnBall">桌面足球赛</button>
+    </div>
+    <p class="hintline" id="ballScoreLine" style="color:#b06a79;font-weight:600;">比分：等待开球</p>
+    <div class="sw"><div class="txt"><b>认真赛模式</b>
+      <span>开启：球速更快，进球后胜者庆祝、败者沮丧，普通出脚后直接追球。关闭：娱乐赛，节奏轻松，踢完会开心一下。</span></div>
+      <button class="tog" data-toggle="ballSerious"></button></div>
+    <p class="hintline">把球丢到桌面上：按住球拖动、松手扔出去；右键点球（或再点一次这个按钮）收起来。</p>
+  </section>
+
+  <section>
+    <h2>行为</h2>
+    <div class="sw"><div class="txt"><b>自动活动</b><span>自己决定散步、坐下、睡觉</span></div>
+      <button class="tog" data-toggle="auto"></button></div>
+    <div class="sw"><div class="txt"><b>到处走走</b><span>关掉就待在原地，只播动作</span></div>
+      <button class="tog" data-toggle="roam"></button></div>
+    <div class="sw"><div class="txt"><b>跟随鼠标</b><span>开启后无法右键开启控制台，如需打开请再次开启软件</span></div>
+      <button class="tog" data-toggle="follow"></button></div>
+    <div class="sw"><div class="txt"><b>坠落模式</b><span>松手就掉到屏幕底部；关掉就停在原地</span></div>
+      <button class="tog" data-toggle="fall"></button></div>
+    <div class="sw"><div class="txt"><b>对话气泡</b><span>关掉就不说话、也不弹气泡</span></div>
+      <button class="tog" data-toggle="bubble"></button></div>
+    <div class="sw"><div class="txt"><b>摸头彩蛋</b><span>连续摸头 10 次后触发全屏彩蛋</span></div>
+      <button class="tog" data-toggle="easterEgg"></button></div>
+    <div class="sw" id="swHunger"><div class="txt"><b>会饿</b><span>约半小时不吃才会饿；关掉就一直饱着</span></div>
+      <button class="tog" data-toggle="hunger"></button></div>
+  </section>
+
+  <section id="v2sec">
+    <h2>V2 系统状态</h2>
+    <div class="sw"><div class="txt"><b>空闲模式</b><span id="v2Idle">—</span></div></div>
+    <div class="sw"><div class="txt"><b>双狗好感</b><span id="v2Aff">—</span></div></div>
+    <div class="sw"><div class="txt"><b>友谊累计</b><span id="v2Friend">—</span></div></div>
+    <div class="sw"><div class="txt"><b>吃醋值</b><span id="v2Jeal">—</span></div></div>
+    <div class="sw"><div class="txt"><b>双狗关系</b><span id="v2Fight">—</span></div></div>
+    <div class="sw"><div class="txt"><b>记忆条数</b><span id="v2Mem">—</span></div></div>
+    <div class="sw"><div class="txt"><b>存档</b><span id="v2Save">—</span></div></div>
+  </section>
+
+  <section>
+    <h2>窗口</h2>
+    <div class="sw"><div class="txt"><b>总是置顶</b><span>浮在其它窗口上面</span></div>
+      <button class="tog" data-toggle="alwaysOnTop"></button></div>
+    <div class="sw"><div class="txt"><b>空白处点击穿透</b><span>透明区域不挡鼠标，能点到底下的图标</span></div>
+      <button class="tog" data-toggle="clickThrough"></button></div>
+    <div class="sw"><div class="txt"><b>鼠标穿透小狗点击</b><span>开启后无法右键开启控制台，如需打开请再次开启软件</span></div>
+      <button class="tog" data-toggle="clickThroughDog"></button></div>
+    <div class="sw"><div class="txt"><b>开机自启动</b><span>登录系统后自动启动桌宠</span></div>
+      <button class="tog" data-toggle="autoStart"></button></div>
+  </section>
+</main>
+
+<footer>
+  <div class="note" id="note" style="display:none"><span id="noteText"></span><br><span class="author"></span></div>
+  <button class="quit" id="quit">退出桌宠</button>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  const api = window.petConsole || null;
+  const $ = (id) => document.getElementById(id);
+
+  /* 同一张页面，两只狗都用。一个控制台里用「小金毛 / 小白」两个标签切换：
+       标签发给主进程的 target：1 = 小金毛，2 = 小白
+       ?pet=2 只作为首次打开时默认选中哪个标签。
+       设置按当前标签对应的那只狗读写，不再共用一份。 */
+  let TARGET = /[?&]pet=2/.test(location.search) ? 2 : 1;
+  let IS_PET2 = TARGET === 2;
+  // 「显示另一只小狗」这个开关，控的是**对方**：
+  //   小金毛的控制台 → 管小白；小白的控制台 → 管小金毛（用户要求）
+  let lastSnapshot = null;
+  // 小白有的动作（与 main.js 的 PET2_ACTIONS 一一对应，也是它真有动画的那 8 个）
+  // —— 加动作要**两边一起加**，否则按钮点了没反应。
+  // 小白与小金毛是同一份页面/同一套动作，所以**不筛按钮**：全套都在，
+  // 还没有动作素材的（散步/坐下/哭哭…）先演静态姿势，素材补上就自动有动画。
+  const PET2_ACTIONS = null;
+  // 亲密度分档的名字（与 index.html 的 levelName 同一套阈值）：
+  // 小金毛那边亲密度是在宠物页上显示的，小白这边就靠控制台看。
+  function levelName(v){
+    if(v < 20) return '刚认识';
+    if(v < 45) return '有点熟';
+    if(v < 70) return '好朋友';
+    if(v < 90) return '超级黏人';
+    if(v < 150) return '形影不离';
+    if(v < 300) return '心意相通';
+    if(v < 600) return '灵魂伴侣';
+    if(v < 1200) return '一生相伴';
+    return '永远在一起';
+  }
+
+  const ACTIVITY = {
+    sleep:'正在做甜甜的梦', greet:'正在开心挥手', walk:'正在桌面上散步',
+    run:'正在追风', jump:'正在起跳', dance:'正在跳舞', laugh:'笑得停不下来',
+    sit:'正在乖乖坐好', drag:'被你拎起来啦', hungry:'肚子咕咕叫',
+    eat:'正在开心吃饭', scratch:'正在挠痒痒', idle:'正在发呆', drop:'正在落地',
+    celebrate:'正在撒彩带庆祝', excited:'兴奋得停不下来',
+    // 小白（第二只狗）的摸头；小金毛那边摸头会直接切到某个积极动作，
+    // 所以这个键只在它的控制台里出现。
+    pet:'正在被摸摸头',
+    wrong:'正在认错', wronged:'委屈着呢', poor:'正在贫穷',
+    cry:'委屈巴巴的', rub:'正在揉揉脸', fart:'偷偷放了个屁',
+    bored:'正在无聊发呆', hehe:'正在偷偷开心', exercise:'正在锻炼身体',
+    crave:'正在馋饭', delete:'正在帮忙删除文件', wash:'正在洗澡澡',
+  };
+  /* 场合：这一轮动作是「为什么」发生的（由宠物页的性情逻辑给，见 index.html
+     的 WHY_LINE）。挂在状态后面，用户才看得出「坐下」是歇脚还是玩累了 ——
+     不然动作换了、原因看不见，看着还是随机。 */
+  const WHY_LABEL = {
+    tired:'玩累了', wake:'刚睡醒', full:'吃饱了', bored:'有点无聊',
+    lonely:'想你了', peckish:'有点饿', starving:'饿坏了',
+    dirty:'脏了', filthy:'很脏', dirtystarved:'又饿又脏',
+  };
+
+  /* ---- 动作 ---- */
+  const actionButtons = [].slice.call(document.querySelectorAll('[data-act]'));
+  actionButtons.forEach((b) => {
+    b.addEventListener('click', () => { if (api) api.act(b.dataset.act, TARGET); });
+  });
+
+  // 某组按钮被过滤光之后，把它的小标题和网格一起藏掉，别留一个空标题
+  function hideEmptyGroups(){
+    document.querySelectorAll('p.sub').forEach((sub) => {
+      const grid = sub.nextElementSibling;
+      if (grid && grid.classList.contains('grid') &&
+          [].slice.call(grid.querySelectorAll('button')).filter((b) => b.style.display !== 'none').length === 0) {
+        sub.style.display = 'none';
+        grid.style.display = 'none';
+      } else if (grid && grid.classList.contains('grid')) {
+        sub.style.display = '';
+        grid.style.display = '';
+      }
+    });
+  }
+
+  // 切换标签：只改当前控制台的目标，不重开窗口。
+  function applyTargetChrome(){
+    IS_PET2 = TARGET === 2;
+    const title = $('title');
+    if (title && title.firstChild) title.firstChild.nodeValue = IS_PET2 ? '小白' : '小金毛';
+    // 找小金毛 = 小白的动作；找小白 = 小金毛的动作。
+    const pupOnly = ['findJin', 'chatJin', 'hugJin', 'comfortJin'];
+    const jinOnly = ['findPup', 'chatPup', 'hugPup', 'comfortPup'];
+    actionButtons.forEach((b) => {
+      if (pupOnly.indexOf(b.dataset.act) >= 0) b.style.display = IS_PET2 ? '' : 'none';
+      else if (jinOnly.indexOf(b.dataset.act) >= 0) b.style.display = IS_PET2 ? 'none' : '';
+      else b.style.display = '';
+    });
+    const bFart = document.querySelector('[data-act="fart"]');
+    if (bFart) bFart.textContent = IS_PET2 ? '盯' : '放屁';
+    const bLaugh = document.querySelector('[data-act="laugh"]');
+    if (bLaugh) bLaugh.textContent = IS_PET2 ? '开心' : '大笑';
+    ACTIVITY.fart = IS_PET2 ? '正在盯着你看' : '偷偷放了个屁';
+    document.title = (IS_PET2 ? '小白' : '小金毛') + ' · 宠物控制台';
+    // 黑点指示：当前控制的那只名字前是实心黑点
+    const dn1 = $('dogName1'), dn2 = $('dogName2');
+    if (dn1) dn1.classList.toggle('ctrl', TARGET === 1);
+    if (dn2) dn2.classList.toggle('ctrl', TARGET === 2);
+    document.querySelectorAll('.tab').forEach((t) => {
+      t.classList.toggle('active', Number(t.dataset.target) === TARGET);
+    });
+    hideEmptyGroups();
+  }
+
+  function setTarget(next){
+    next = next === 2 ? 2 : 1;
+    if (next === TARGET) { applyTargetChrome(); return; }
+    TARGET = next;
+    if (api && api.selectTab) api.selectTab(TARGET);
+    applyTargetChrome();
+    if (lastSnapshot) paint(lastSnapshot);
+  }
+  document.querySelectorAll('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => setTarget(Number(btn.dataset.target)));
+  });
+  if (api && api.onSelectPet) api.onSelectPet((target) => setTarget(target));
+  applyTargetChrome();
+
+  /* ---- 开关 ---- */
+  const togs = {};
+  document.querySelectorAll('[data-toggle]').forEach((b) => {
+    const k = b.dataset.toggle;
+    togs[k] = b;
+    b.addEventListener('click', () => {
+      const on = !b.classList.contains('on');
+      b.classList.toggle('on', on);
+      // 「显示另一只」这个开关发给对方那只；其它设置照旧发给自己
+      if (api) api.set(k, on, TARGET);
+    });
+  });
+
+  $('quit').addEventListener('click', () => { if (api) api.quit(); });
+
+  /* ---- 主进程推来的状态 ---- */
+  // 两只狗的状态各画一份（不再做切换）：小金毛 = 快照本体，小白 = s.pet2
+  // pfx：'1'=小金毛（bar 元素后缀 1、now 行无后缀）/ '2'=小白（后缀 2）
+  function drawDog(pfx, d, follow){
+    const st = d.state || 'idle';
+    const why = WHY_LABEL[d.why];
+    const followNote = follow ? ' · 追随中，兴致正在上涨' : '';
+    $(pfx === '2' ? 'nowText2' : 'nowText1').textContent =
+      (ACTIVITY[st] || '正在忙着') + followNote + (why ? ' · ' + why : '');
+    $(pfx === '2' ? 'dot2' : 'dot1').classList.toggle('away', st === 'sleep' || st === 'idle');
+
+    const hRaw = Math.max(0, Number(d.happiness) || 0);
+    const h = Math.min(100, hRaw);
+    const f = Math.max(0, Math.min(100, 100 - (Number(d.hunger) || 0)));
+    const m = Math.max(0, Math.min(100, Number(d.mood) || 0));
+    const fat = Math.max(0, Math.min(100, Number(d.strain) || 0));
+    const cl2 = Math.max(0, Math.min(100, Number(d.clean) != null ? Number(d.clean) : 100));
+    $('heartBar' + pfx).style.width = h + '%';
+    $('foodBar' + pfx).style.width  = f + '%';
+    $('moodBar' + pfx).style.width = m + '%';
+    $('strainBar' + pfx).style.width = fat + '%';
+    $('cleanBar' + pfx).style.width = cl2 + '%';
+    $('heartVal' + pfx).textContent = Math.round(hRaw) + ' · ' + levelName(hRaw);
+    $('foodVal' + pfx).textContent  = Math.round(f) + '%';
+    $('moodVal' + pfx).textContent = Math.round(m) + '%';
+    $('cleanVal' + pfx).textContent = Math.round(cl2) + '%' +
+      (cl2 <= 22 ? ' 很脏！' : (cl2 <= 40 ? ' 脏了' : ''));
+    // 疲劳涨满就该睡了（76 与 index.html 的 bedAt 同源）
+    $('strainVal' + pfx).textContent = Math.round(fat) + '%' +
+      ((Number(d.strain) || 0) >= 76 ? ' 该睡了' : '');
+  }
+  function paint(s){
+    if (!s) return;
+    lastSnapshot = s;
+    // 小金毛 = 快照本体；小白 = s.pet2（字段同款）。两只同时画，不做切换。
+    drawDog('1', s, !!(s.follow));
+    const p2 = s.pet2 || {};
+    drawDog('2', p2, !!(s.settings2 && s.settings2.follow));
+
+    // 设置分两份（小金毛 = s.settings，小白 = s.settings2）；滑杆/开关画当前
+    // 控制台对应的那份。
+    const eff = IS_PET2 ? (s.settings2 || s.settings || {}) : (s.settings || {});
+    {
+      const g = eff;
+      // 快照里没有设置（理论上不会）就直接收工，别把 NaN 写到滑杆上
+      if (g.scale == null) return;
+      // 「大小」滑杆的两端随屏幕走。**必须先改 min/max 再写 value** ——
+      // 顺序反了的话，新的 value 会被旧上限夹掉（比如上限从 135 放到 204，
+      // 先写 value=180 会被当成越界直接吸到 135，滑杆看着就是「调不上去」）。
+      togs.auto.classList.toggle('on', !!g.auto);
+      togs.roam.classList.toggle('on', !!g.roam);
+      togs.follow.classList.toggle('on', !!g.follow);
+      togs.fall.classList.toggle('on', !!g.fall);
+      // 老快照里没有 bubble 字段时按「开」算，别把开关显示成关
+      togs.bubble.classList.toggle('on', g.bubble !== false);
+      togs.easterEgg.classList.toggle('on', g.easterEgg !== false);
+      // 食材库存（两只共用）：写在按钮上，0 的时候把按钮变淡提示
+      const food = Number(g.food) || 0;
+      const bf = document.getElementById('btnFood'), bc = document.getElementById('btnCook');
+      const bb = document.getElementById('btnBall');
+      if (bf) bf.textContent = '给食材 ' + (food >= 1 ? '1/1' : '0/1');
+      // 踢球按钮是个开关：球在桌上时显示「收起小球」
+      if (bb) bb.textContent = s.ball ? '收起小球' : '桌面足球赛';
+      // 踢球小游戏的比分（桌面上那两个球门里也各显示一份）
+      const sl = document.getElementById('ballScoreLine');
+      if (sl){
+        const bs = s.ballScore || {}, bn = s.ballNames || {};
+        sl.textContent = s.ball
+          ? '比分：' + (bn.left || '左') + ' ' + (bs.left | 0) + ' : ' + (bs.right | 0) + ' ' + (bn.right || '右')
+          : '比分：等待开球（点击“桌面足球赛”）';
+      }
+      // 球在桌上时双人动作不响应（主进程那边直接拒绝）→ 这里变暗说明原因，
+      // 免得用户以为按钮坏了
+      const gd = document.getElementById('gridDuo');
+      if (gd){
+        gd.style.opacity = s.ball ? '.45' : '1';
+        gd.title = s.ball ? '桌面足球赛进行中：先收起小球再做双人动作' : '';
+      }
+      if (bc) bc.style.opacity = food >= 1 ? '1' : '.55';
+      togs.hunger.classList.toggle('on', !!g.hunger);
+      togs.alwaysOnTop.classList.toggle('on', !!g.alwaysOnTop);
+      togs.clickThrough.classList.toggle('on', !!g.clickThrough);
+      togs.clickThroughDog.classList.toggle('on', !!g.clickThroughDog);
+      togs.autoStart.classList.toggle('on', !!g.autoStart);
+      if (togs.ballSerious) togs.ballSerious.classList.toggle('on', !!g.ballSerious);
+    }
+    // ---- V2 系统状态区 ----
+    const v2 = s.v2;
+    if (v2) {
+      const MODE = { normal: '正常', quiet: '安静中', dnd: '免打扰' };
+      const el = (id) => document.getElementById(id);
+      if (el('v2Idle')) el('v2Idle').textContent = MODE[v2.idle.mode] || v2.idle.mode;
+      if (el('v2Aff')) el('v2Aff').textContent = v2.relationship.affection + ' / 100'
+        + (v2.relationship.fighting ? '（吵架中…）' : '');
+      if (el('v2Friend')) el('v2Friend').textContent = v2.relationship.friendship + ' 次互动';
+      if (el('v2Jeal')) el('v2Jeal').textContent =
+        '小金毛 ' + (v2.relationship.jealousy[1] || 0) + ' · 小白 ' + (v2.relationship.jealousy[2] || 0);
+      if (el('v2Fight')) el('v2Fight').textContent = v2.relationship.fighting ? '吵架中' : '和睦';
+      if (el('v2Mem')) el('v2Mem').textContent =
+        '小金毛 ' + (v2.memory[1].total || 0) + ' 条 · 小白 ' + (v2.memory[2].total || 0) + ' 条';
+      if (el('v2Save')) el('v2Save').textContent = 'schema v' + v2.save.version
+        + (v2.save.savedAt ? ' · 上次 ' + v2.save.savedAt.replace('T', ' ').slice(5, 19) : ' · 未保存');
+    }
+  }
+
+  if (api) {
+    api.onSnapshot(paint);
+    api.request();
+    setInterval(() => api.request(), 1000);
+    api.info().then((i) => {
+      if (i && i.electron) {
+        // 带上版本号：桌宠是「一个进程常驻、反复替换 .app」的用法，光看界面
+        // 分不清手上跑的是哪一版（双击已在运行的 app 只会激活旧实例，不会重开）。
+        // 版本号从 app:info 来（app.getVersion() ← 包内 package.json）。
+        $('noteText').textContent = '左键拖走小狗 · 双击转圈圈 · 右键唤出控制台 · v'
+          + (i.version || '?') + (i.build ? '（构建 ' + i.build + '）' : '')
+          + ' / Electron ' + i.electron;
+      }
+    }).catch(() => {});
+  } else {
+    $('nowText1').textContent = '没有检测到桌宠主进程（这个页面要在 Electron 里打开）';
+    $('dot').classList.add('away');
+  }
+})();
+</script>
+</body>
+</html>

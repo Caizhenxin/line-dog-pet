@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="../../">
+<meta charset="utf-8">
+<title>球门</title>
+<style>
+  html,body{ margin:0; height:100%; overflow:hidden; background:transparent;
+    user-select:none; -webkit-user-select:none; }
+  canvas{ display:block; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/* 桌面上的球门。这一页只干两件事：把门框+网+比分画出来、接主进程发来的比分。
+   进球判定在主进程（球的坐标本来就在那边）。 */
+(function(){
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const SIDE = q.get('side') === 'right' ? 'right' : 'left';
+  const NAME = q.get('name') || '';
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  let score = 0, flash = 0, serious = false;
+
+  function draw(){
+    const DPR = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth, H = window.innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const bar = 9;
+    const inner = SIDE === 'left' ? W : 0;      // 门口（朝向场地的那一侧，不画框）
+    const outer = SIDE === 'left' ? 0 : W;      // 门柱那侧
+
+    // —— 网：交叉斜线，被门框裁在里面 ——
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(Math.min(outer, inner) + bar * 0.5, bar * 0.5,
+             Math.abs(inner - outer) - bar, H - bar);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(120,180,255,.16)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,.42)';
+    ctx.lineWidth = 1.4;
+    for(let i = -H; i < W + H; i += 13){
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(i, H); ctx.lineTo(i + H, 0); ctx.stroke();
+    }
+    if(flash > 0){
+      ctx.fillStyle = 'rgba(255,236,140,' + (0.5 * flash).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.restore();
+
+    // —— 门框：门柱 + 上下两根，门口那一侧留空 ——
+    const half = bar / 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(30,40,60,.55)';
+    ctx.lineWidth = bar + 3;
+    strokeFrame();
+    ctx.strokeStyle = '#f4f9ff';
+    ctx.lineWidth = bar;
+    strokeFrame();
+    function strokeFrame(){
+      ctx.beginPath();
+      ctx.moveTo(SIDE === 'left' ? W - half : half, half);
+      ctx.lineTo(SIDE === 'left' ? half : W - half, half);
+      ctx.lineTo(SIDE === 'left' ? half : W - half, H - half);
+      ctx.lineTo(SIDE === 'left' ? W - half : half, H - half);
+      ctx.stroke();
+    }
+
+    // —— 比分牌：门中间一块小牌子，名字 + 大数字 ——
+    const cx = W / 2, cy = H / 2;
+    const plateW = Math.min(W - bar * 2 - 4, 78);
+    const plateH = 82;
+    const x0 = cx - plateW / 2, y0 = cy - plateH / 2;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x0, y0, plateW, plateH, 14);
+    else ctx.rect(x0, y0, plateW, plateH);
+    ctx.fillStyle = 'rgba(255,255,255,.88)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#7b8798';
+    ctx.font = '600 11px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(NAME, cx, y0 + 15);
+    ctx.fillStyle = '#2f3b4d';
+    ctx.font = '800 30px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(String(score), cx, y0 + 40);
+    // 当前是娱乐赛还是认真赛（认真赛门上也标一下，免得忘了自己开的哪个模式）
+    ctx.fillStyle = serious ? '#c2506d' : '#8a94a6';
+    ctx.font = '600 10px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(serious ? '认真赛' : '娱乐赛', cx, y0 + 64);
+  }
+
+  draw();
+  window.addEventListener('resize', draw);
+
+  const api = window.goalDesk || null;
+  if(api){
+    api.onState((st) => {
+      if(!st) return;
+      serious = !!st.serious;
+      const v = Number(SIDE === 'left' ? st.left : st.right) || 0;
+      if(v !== score){
+        score = v;
+        flash = 1;                       // 进球时整扇网亮一下
+        const t0 = performance.now();
+        (function fade(){
+          flash = Math.max(0, flash - 0.055);
+          draw();
+          if(flash > 0 && performance.now() - t0 < 900) requestAnimationFrame(fade);
+        })();
+        return;
+      }
+      draw();
+    });
+    api.request && api.request();
+  }
+})();
+</script>
+</body>
+</html>
