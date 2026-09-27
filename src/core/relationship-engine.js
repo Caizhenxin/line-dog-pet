@@ -89,7 +89,7 @@ class RelationshipEngine {
       if (st.state && ['sleep', 'run', 'meet', 'wash', 'eat'].indexOf(st.state) >= 0) continue;   // 忙时不打断
       if (Math.random() < 0.3) {
         this.sendToPet(id, { type: 'act', act: 'rub' });
-        this.runtime.states.recordInteract(id);
+        this.runtime.states.recordActivity(id);
         this.jealousy[id] = Math.max(0, this.jealousy[id] - 15);
         this.lastJealousActAt[id] = now;
         return;                                // 每节拍至多一只吃醋

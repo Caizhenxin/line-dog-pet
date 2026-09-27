@@ -21,7 +21,6 @@ class MemoryManager {
    *   onMemory: (id, mem) => void   可选：记忆写入后的回调（如触发「想起某事」）
    */
   constructor(runtime, opts) {
-    this.tickMs = CONFIG.memory.flushMs;
     this.runtime = runtime;
     this.onMemory = (opts && opts.onMemory) || null;
   }
@@ -57,14 +56,8 @@ class MemoryManager {
     return { total: st.history.length, byType };
   }
 
-  /** 节拍：记忆随 autosave 固化（states.*.history 被存档带走）；
-   *  本节拍保留钩子，供未来做记忆衰减/整理。 */
-  tick() {
-    // 记忆持久化由 runtime 的 autosave 周期完成（memory.cap 已在写入时保证）
-    if (this.runtime && typeof this.runtime._autoSave === 'function') {
-      this.runtime._autoSave();
-    }
-  }
+  /** 记忆固化由 runtime 统一负责（§33 debounce 3000ms + 60s autosave + before-quit）；
+   *  本类只做记录与查询，不触发保存（规范第四章：MemoryManager 不重复负责自动保存） */
 }
 
 function create(runtime, opts) {

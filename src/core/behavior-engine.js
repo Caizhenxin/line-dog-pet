@@ -43,9 +43,9 @@ class BehaviorEngine {
   /** 节拍入口（scheduler 每 decisionInterval 调用一次） */
   tick(now) {
     const mode = this._mode();
-    // dnd：行为引擎仅允许基础行为（§36），仍按 30s 间隔决策
+    // dnd：行为引擎仅允许基础行为（§36），仍按 30s 间隔决策；
+    // 不得因 quiet 判断提前 return（isQuiet 对 quiet/dnd 均 true，会阻断 dndAllowed 基础行为）
     if (mode === 'dnd') {
-      if (this.quiet()) return;                // 极端情况全停
       if (!this._beatOk(now, QU.behaviorDeepInterval)) return;
       for (const id of [1, 2]) this._maybeAct(id, now, true);
       return;
@@ -154,7 +154,7 @@ class BehaviorEngine {
     const pageAct = B.actMap[act] || act;          // 映射到页面认识的动作名
     this.sendToPet(id, { type: 'act', act: pageAct });
     if (!record) return;
-    this.runtime.states.recordInteract(id);        // 自发行为也算「在活动」，重置无聊
+    this.runtime.states.recordActivity(id);        // 自发行为=活动记录（不触发用户互动逻辑）
     const st = this.runtime.states.get(id);
     st.lastActionAt = now || Date.now();
     // 防重复记录（环形 8）

@@ -1,9 +1,36 @@
 # 打包说明（macOS arm64）
 
-electron-builder 在当前中文目录名（`/Users/sonos/Downloads/新/...`）下会触发
-`rename Electron.app → 可执行名` 的 ENOENT bug，所以采用**手动打包**流程。
+当前 `npm run pack`（electron-builder）可直接打包成功，产物：
+`dist/LineDogPet-<version>-arm64.dmg`（含 `latest-mac.yml` + `blockmap`，支持自动更新）。
 
-## 手动打包脚本（一条命令）
+## 标准打包（electron-builder，一条命令）
+
+```bash
+npm run pack        # = electron-builder --mac（dmg, arm64；配置见 package.json build.mac）
+```
+
+产物位于 `dist/`：
+- `LineDogPet-<version>-arm64.dmg` — 安装包
+- `LineDogPet-<version>-arm64.dmg.blockmap` / `latest-mac.yml` — 自动更新元数据
+- `mac-arm64/LineDogPet.app` — 未压缩的 .app（可直接运行）
+
+未签名（package.json `build.mac.identity = null`），首次打开需在
+「系统设置 → 隐私与安全性」中允许。
+
+## 故障排查
+
+- **electron-builder 下载 electron 超时**：GitHub releases 直连可能超时，先手动下载
+  到缓存再打包：
+  ```bash
+  curl -L -o ~/Library/Caches/electron/electron-v33.4.11-darwin-arm64.zip \
+    https://npmmirror.com/mirrors/electron/v33.4.11/electron-v33.4.11-darwin-arm64.zip
+  unzip -t ~/Library/Caches/electron/electron-v33.4.11-darwin-arm64.zip   # 校验完整性
+  npm run pack
+  ```
+- 若 electron-builder 仍异常（如 `rename Electron.app → 可执行名` ENOENT），
+  可退回手动打包流程（下方备用）。
+
+## 备用：手动打包流程
 
 ```bash
 cd 线条小狗桌宠
@@ -26,11 +53,12 @@ hdiutil create -volname "线条小狗桌宠" -srcfolder /tmp/dmg_tmp -ov -format
 
 ## 验证
 
-- `.app` 直接运行 `dist/LineDogPet.app/Contents/MacOS/LineDogPet`
-- 自检截图：`npx electron . --shot-dir=<目录>`（无录屏权限要求）
-- dmg 挂载检查：`hdiutil attach dist/线条小狗桌宠_v1.0_mac.dmg -nobrowse -readonly`
+- `.app` 直接运行 `dist/mac-arm64/LineDogPet.app/Contents/MacOS/LineDogPet`
+- dmg 校验：`hdiutil verify dist/LineDogPet-<version>-arm64.dmg`
+- 自检截图：`npm start -- --shot-dir=<目录>`（无录屏权限要求）
 
 ## 备注
 
-- 项目在 arm64；如需 Intel 版，把 `node_modules/electron/dist` 换成 x64 的 Electron 再打包。
+- 项目在 arm64；如需 Intel 版，把 electron-builder `mac.target.arch` 改为 `x64`
+  （或手动流程中替换 x64 Electron）。
 - `GOOSE_DEBUG=1` 打印捣蛋行为日志；`GOOSE_FAST=1` 6 倍速调度（测试用）。

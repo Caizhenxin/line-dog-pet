@@ -97,6 +97,15 @@ class PetStateManager {
     s.boredom = 0;
   }
 
+  /** 记录一次宠物自发活动（自动行为/随机事件/关系行为），重置无聊度；
+   *  与 recordInteract 区分：不触发用户互动类关系逻辑/记忆（规范第三章） */
+  recordActivity(id) {
+    const s = this.states[id];
+    if (!s) return;
+    s.lastInteractAt = Date.now();
+    s.boredom = 0;
+  }
+
   /** 30 秒节拍：影子量结算（速率对齐规范 §5：boredom +0.6/min、energy -0.25/min、hunger +0.8/min） */
   tick(now) {
     const st = CONFIG.state;

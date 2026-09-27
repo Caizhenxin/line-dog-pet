@@ -230,8 +230,8 @@ class EventEngine {
       const s1 = this.runtime.states.get(1), s2 = this.runtime.states.get(2);
       if (ev.effect) ev.effect(null, s2, this.runtime);
       s1.stats.events += 1; s2.stats.events += 1;
-      this.runtime.states.recordInteract(1);
-      this.runtime.states.recordInteract(2);
+      this.runtime.states.recordActivity(1);
+      this.runtime.states.recordActivity(2);
       const mem = this.runtime.engines && this.runtime.engines.memory;
       if (mem) { mem.record(1, 'event', ev.name); mem.record(2, 'event', ev.name); }
     } else {
@@ -240,7 +240,7 @@ class EventEngine {
       ev.play(id, st, this.sendToPet);
       if (ev.effect) ev.effect(id, st, this.runtime);
       st.stats.events += 1;
-      this.runtime.states.recordInteract(id);
+      this.runtime.states.recordActivity(id);
       const mem = this.runtime.engines && this.runtime.engines.memory;
       if (mem) mem.record(id, 'event', ev.name);
     }
