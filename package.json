@@ -7,7 +7,8 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --mac"
+    "pack": "electron-builder --mac",
+    "pack:win": "electron-builder --win"
   },
   "author": "sonos",
   "license": "Apache-2.0",
@@ -30,6 +31,10 @@
       {
         "from": "tools/move-mouse",
         "to": "tools/move-mouse"
+      },
+      {
+        "from": "tools/move-mouse.exe",
+        "to": "tools/move-mouse.exe"
       }
     ],
     "dmg": {
@@ -39,7 +44,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.icns",
+      "icon": "build/icon.ico",
       "artifactName": "LineDogPet-${version}-setup.${ext}"
     },
     "nsis": {

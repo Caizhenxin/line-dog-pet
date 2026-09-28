@@ -17,11 +17,12 @@
 
 ```bash
 npm install        # 安装依赖（Electron）
-npm start          # 开发模式启动
+npm start          # 开发模式启动（macOS / Windows 均可）
 npm run pack       # 打包 macOS 应用（electron-builder）
+npm run pack:win   # 打包 Windows 安装包（nsis，产物在 dist/）
 ```
 
-macOS 打包流程见 [`docs/packaging.md`](docs/packaging.md)。
+macOS / Windows 打包流程均见 [`docs/packaging.md`](docs/packaging.md)。
 
 ## 项目结构
 
@@ -34,7 +35,7 @@ line-dog-pet/
 │   ├── preload-*.js         # 各窗口 preload
 │   └── renderer/            # 各窗口页面（index/console/footprint 等）
 ├── assets/                  # 运行资源（pet2 动画、memes 表情包、托盘图标）
-├── tools/                   # 工具脚本（extract-pet2.py 动画提取、move-mouse 光标控制）
+├── tools/                   # 工具脚本（动画提取 / 光标控制 move-mouse[.exe] / Windows 图标生成）
 ├── docs/                    # 文档（packaging.md）
 ├── goose-render.js          # 渲染端辅助脚本（随 index.html 加载）
 ├── package.json
@@ -45,10 +46,15 @@ line-dog-pet/
 
 - **表情包弹窗**：往 `assets/memes/` 添加 GIF/图片，重启后小狗会随机使用
 - **小狗留言 / 剧情**：改 `src/goose-main.js` 中的 `MEME_NOTES` / `SKITS`
-- **新增动画**：`python3 tools/extract-pet2.py <gif> <名字>` 生成逐帧 webp + 元数据
-- **捣蛋频率 / 开关**：托盘右键菜单实时调整，持久化在 `~/Library/Application Support/line-dog-pet/goose.json`
+- **新增动画**：`python tools/extract-pet2.py <gif> <名字>` 生成逐帧 webp + 元数据（macOS 上若无 `python` 命令就用 `python3`）
+- **捣蛋频率 / 开关**：托盘右键菜单实时调整，持久化在 `goose.json`（macOS 在 `~/Library/Application Support/line-dog-pet/`，Windows 在 `%APPDATA%\line-dog-pet\`）
 
-## macOS 权限说明
+## 系统权限说明
+
+**Windows：不需要任何系统授权。** 光标控制走 Win32 `SetCursorPos`（`tools/move-mouse.c`），
+不需要 macOS 那套「辅助功能」授权；叼鼠标 / 追光标能正常拽动系统光标即为生效。
+
+**macOS：**
 
 - **辅助功能（必需）**：叼鼠标 / 追光标依赖系统级光标控制。首次运行无效时，请在
   **系统设置 → 隐私与安全性 → 设备控制和数据访问** 中给「线条小狗桌宠」（开发模式为 Electron）勾选权限，重启应用生效。
@@ -56,9 +62,11 @@ line-dog-pet/
 
 ## 当前开发状态
 
-- 双狗养成、互动、捣蛋、事件、关系、控制台、存档：已实现并运行
+- 双狗养成、互动、捣蛋、事件、关系、控制台、存档：已实现并运行（macOS / Windows 双平台）
 - V2 影子系统：核心逻辑已实现，经单元测试（47 项）与端到端自检
-- 未完成项（如实）：Windows 安装包未产出；空闲模式 CPU 收益未实测；双狗自动互动（friendship 联动）与记忆分类上限未实现
+- Windows 支持：光标工具 `tools/move-mouse.exe`、托盘/窗口图标、`npm run pack:win` 打包脚本均已就位，
+  自检（`electron . --shot-dir=<目录>`）在 Windows 上跑通
+- 未完成项（如实）：空闲模式 CPU 收益未实测；双狗自动互动（friendship 联动）与记忆分类上限未实现
 
 ## 已知问题
 

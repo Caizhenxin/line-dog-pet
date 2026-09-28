@@ -23,9 +23,12 @@ const ASSET_DIR = path.join(__dirname, '..', 'assets');
 const MEME_DIR = path.join(ASSET_DIR, 'memes');
 // 开发模式：tools/ 在项目根；打包后 move-mouse 通过 extraResources 进
 // Contents/Resources/tools/（app.asar 内无法跑外部二进制）。
+// 二进制按平台分开：macOS 是 Swift 编译的 move-mouse（需辅助功能授权），
+// Windows 是 C 编译的 move-mouse.exe（SetCursorPos，无需授权，见 tools/move-mouse.c）。
+const MOVE_MOUSE_NAME = process.platform === 'win32' ? 'move-mouse.exe' : 'move-mouse';
 const MOVE_MOUSE = app.isPackaged
-  ? path.join(process.resourcesPath, 'tools', 'move-mouse')
-  : path.join(__dirname, '..', 'tools', 'move-mouse');
+  ? path.join(process.resourcesPath, 'tools', MOVE_MOUSE_NAME)
+  : path.join(__dirname, '..', 'tools', MOVE_MOUSE_NAME);
 
 // ---------------------------------------------------------------------------
 // 设置（独立于官方 desktop-pet.json，存 userData/goose.json）
@@ -69,13 +72,20 @@ function petState() { return deps && deps.getPetState ? deps.getPetState() : { s
 function sendToPet(m) { if (deps && deps.sendToPet) deps.sendToPet(m); }
 
 // ---------------------------------------------------------------------------
-// 光标控制（tools/move-mouse，CGEvent 移动系统光标）
+// 光标控制（tools/move-mouse[.exe]：macOS 走 CGEvent，Windows 走 SetCursorPos）
 // ---------------------------------------------------------------------------
 let moveQueue = 0;
 function moveCursor(x, y, cb) {
   if (!x || !y) return;
+  // Windows：狗的位置 / 光标位置都是 Electron 的 DIP（逻辑像素），而
+  // SetCursorPos 要**物理像素**。缩放 ≠100% 时不换算光标会落偏（150% 时
+  // 只走到目标的 2/3 处）；dipToScreenPoint 是 Windows 专有 API，按显示器
+  // 逐个换算，多屏不同缩放也准。macOS 的 CGEvent 本来就用点坐标，不用换。
+  const p = process.platform === 'win32'
+    ? screen.dipToScreenPoint({ x: Math.round(x), y: Math.round(y) })
+    : { x: Math.round(x), y: Math.round(y) };
   moveQueue += 1;
-  execFile(MOVE_MOUSE, [String(Math.round(x)), String(Math.round(y))], (err) => {
+  execFile(MOVE_MOUSE, [String(p.x), String(p.y)], { windowsHide: true }, (err) => {
     moveQueue -= 1;
     if (err && process.env.GOOSE_DEBUG) console.error('[goose] move-mouse:', err.message);
     if (cb) cb();

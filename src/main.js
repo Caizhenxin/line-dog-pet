@@ -1963,9 +1963,10 @@ function createConsoleWindow(target) {
     // 退回系统标题栏 —— 显式按平台给，免得平台间行为不一致时难排查。
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
     // Windows 的窗口图标取自这里（macOS 走 .app 包里的 icon.icns）。
-    // exe 自身的图标没法在 macOS 上改（要 rcedit + wine），所以显式给窗口一个。
+    // 打包时 exe 自身的图标由 electron-builder 用 build/icon.ico 烧进去，
+    // 这里是给窗口用的（任务栏 / Alt-Tab）。
     ...(process.platform === 'win32'
-        ? { icon: path.join(APP_DIR, 'assets', 'icon.png') } : {}),
+        ? { icon: path.join(ASSET_DIR, 'icon.png') } : {}),
     show: false,
     backgroundColor: '#f6f7fb',
     webPreferences: {

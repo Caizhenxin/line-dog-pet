@@ -1,9 +1,40 @@
-# 打包说明（macOS arm64）
+# 打包说明（macOS arm64 / Windows）
 
-当前 `npm run pack`（electron-builder）可直接打包成功，产物：
-`dist/LineDogPet-<version>-arm64.dmg`（含 `latest-mac.yml` + `blockmap`，支持自动更新）。
+- macOS：`npm run pack`（electron-builder）可直接打包成功，产物：
+  `dist/LineDogPet-<version>-arm64.dmg`（含 `latest-mac.yml` + `blockmap`，支持自动更新）。
+- Windows：`npm run pack:win` 产出 `dist/LineDogPet-<version>-setup.exe`（NSIS 安装包）。
+  详见下方「Windows 打包」。
 
-## 标准打包（electron-builder，一条命令）
+## Windows 打包（nsis）
+
+```bash
+npm run pack:win      # = electron-builder --win（配置见 package.json build.win）
+```
+
+- **图标**：`build/icon.ico`（多尺寸 256…16），占位图由 `python tools/make-icons.py`
+  从 `assets/front-dog.png` / `tray-meme.png` 生成；换正式图标后重跑该脚本即可。
+  托盘图标 `assets/tray-win.png`（+ `@2x`）同样由该脚本产出。
+  （`build/` 按 `.gitignore` 不入库，新克隆的仓库打包前先跑一次该脚本。）
+- **光标工具**：`tools/move-mouse.exe` 经 `extraResources` 打到 `resources/tools/`
+  （app.asar 外；运行时由 `src/goose-main.js` 按平台拼路径）。重新编译：
+
+  ```bash
+  gcc -O2 -s -mwindows -o tools/move-mouse.exe tools/move-mouse.c   # MinGW-w64 gcc
+  ```
+
+  接口与 macOS 版 `tools/move-mouse.swift` 一致（`<x> <y>` / `--delta <dx> <dy>`），
+  但坐标是**物理像素**：主进程先用 `screen.dipToScreenPoint()` 把 DIP 换算成物理像素
+  再传入（缩放 ≠100% 时不做这步光标会落偏）。
+- **未签名**：首次运行 SmartScreen 会提示「未知发布者」→「更多信息」→「仍要运行」。
+- **国内网络**：electron / electron-builder 依赖的二进制走镜像，避免 GitHub 下载超时：
+
+  ```powershell
+  $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+  $env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+  npm run pack:win
+  ```
+
+## 标准打包（macOS，electron-builder，一条命令）
 
 ```bash
 npm run pack        # = electron-builder --mac（dmg, arm64；配置见 package.json build.mac）
@@ -56,6 +87,17 @@ hdiutil create -volname "线条小狗桌宠" -srcfolder /tmp/dmg_tmp -ov -format
 - `.app` 直接运行 `dist/mac-arm64/LineDogPet.app/Contents/MacOS/LineDogPet`
 - dmg 校验：`hdiutil verify dist/LineDogPet-<version>-arm64.dmg`
 - 自检截图：`npm start -- --shot-dir=<目录>`（无录屏权限要求）
+  - **Windows 上别用 `npm start -- --shot-dir=…`**：npm/PowerShell 会把参数吞掉
+    （实测进程里只剩 `electron.exe .`，自检根本不启动）。直接调壳：
+
+    ```powershell
+    .\node_modules\electron\dist\electron.exe . --shot-dir=C:\Temp\shots
+    ```
+
+  - 自检约 30 秒跑完并自动退出，向 `SELFTEST_*` 打印结果、往目录里落 6 张截图；
+    期间别同时开第二个实例（单实例锁会让新实例秒退，自检不执行）。
+  - `gcc` 编译 `move-mouse.exe` 的机器上，可先单独验光标工具：
+    `python -c "import subprocess;subprocess.run([r'tools\move-mouse.exe',str(100),str(100)])"`
 
 ## 备注
 
